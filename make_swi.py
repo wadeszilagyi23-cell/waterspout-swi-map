@@ -11,58 +11,35 @@ import matplotlib.pyplot as plt
 # Bounding box for your area of interest
 BBOX = (-92.0, -74.0, 49.5, 40.5)  # leftlon, rightlon, toplat, bottomlat
 
-def fetch_gfs_subset(cyc, bbox, retries=3, delay=60):
-    """Download GFS subset for given cycle with retries."""
-    base_url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
-    params = {
-        "file": f"gfs.t{cyc['hour']:02d}z.pgrb2.0p25.f000",
-        "lev_surface": "on",
-        "lev_10_m_above_ground": "on",
-        "lev_850_mb": "on",
-        "var_tmp": "on",
-        "var_ugrd": "on",
-        "var_vgrd": "on",
-        "var_cape": "on",
-        "leftlon": bbox[0],
-        "rightlon": bbox[1],
-        "toplat": bbox[2],
-        "bottomlat": bbox[3],
-        "dir": f"/gfs.{cyc['date']}/{cyc['hour']:02d}/atmos",
-        "format": "netcdf"
-    }
+# --- New resilient GFS fetch logic ---
+MAX_CYCLES_BACK = 12  # check up to 3 days back
+CYCLE_INTERVAL_HOURS = 6
 
-    for attempt in range(1, retries + 1):
-        r = requests.get(base_url, params=params)
-        if r.status_code == 200:
-            return r
-        print(f"Attempt {attempt} failed with status {r.status_code}")
-        if attempt < retries:
-            print(f"Retrying in {delay} seconds...")
-            time.sleep(delay)
+def gfs_run_exists(url):
+    """Check if a GFS run file exists before downloading."""
+    try:
+        r = requests.head(url, timeout=10)
+        return r.status_code == 200
+    except requests.RequestException:
+        return False
 
-    raise requests.exceptions.HTTPError(
-        f"All {retries} attempts failed for {cyc['date']} {cyc['hour']:02d}Z"
-    )
+def find_latest_gfs_url():
+    """Search backwards for the most recent available GFS run."""
+    now = datetime.datetime.utcnow()
+    for i in range(MAX_CYCLES_BACK):
+        run_time = now - datetime.timedelta(hours=i * CYCLE_INTERVAL_HOURS)
+        cycle_str = run_time.strftime("%Y%m%d %HZ")
+        url = (
+            f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
+            f"gfs.{run_time.strftime('%Y%m%d')}/{run_time.strftime('%H')}/atmos/"
+            f"gfs.t{run_time.strftime('%H')}z.pgrb2.0p25.f000"
+        )
+        print(f"🔍 Checking GFS run {cycle_str}...")
+        if gfs_run_exists(url):
+            print(f"✅ Found available run: {cycle_str}")
+            return url, cycle_str
+    return None, None
 
-def find_latest_available_run(bbox):
-    """Find the most recent GFS run that is actually available."""
-    now_utc = datetime.datetime.utcnow()
-    cycle_hours = [0, 6, 12, 18]
-
-    for hours_back in range(0, 24, 6):
-        candidate_time = now_utc - datetime.timedelta(hours=hours_back)
-        nearest_cycle_hour = max(h for h in cycle_hours if h <= candidate_time.hour)
-        cyc = {
-            "date": candidate_time.strftime("%Y%m%d"),
-            "hour": nearest_cycle_hour
-        }
-        try:
-            print(f"🔍 Trying GFS run {cyc['date']} {cyc['hour']:02d}Z...")
-            r = fetch_gfs_subset(cyc, bbox)
-            print(f"✅ Using GFS run {cyc['date']} {cyc['hour']:02d}Z")
-            return r
-        except Exception as e:
-            print(f"❌ Failed for {cyc['date']} {cyc['hour']:02d}Z: {e}")
 
     raise RuntimeError("No recent GFS runs available — try again later.")
 
@@ -95,10 +72,21 @@ def generate_swi_overlay(nc_path):
 def main():
     try:
         # Step 1 — Download most recent available GFS data
-        ds_response = find_latest_available_run(BBOX)
-        with open("gfs_data.nc", "wb") as f:
-            f.write(ds_response.content)
-        print("💾 Saved gfs_data.nc")
+        # Step 1 — Find the most recent available GFS run
+gfs_url, gfs_cycle = find_latest_gfs_url()
+if not gfs_url:
+    print("⚠ No new GFS data found — using last successful SWI overlay. (Build skipped)")
+    sys.exit(0)
+
+print(f"🚀 Proceeding with SWI overlay build using GFS run {gfs_cycle}...")
+
+# Download the data
+response = requests.get(gfs_url)
+response.raise_for_status()
+with open("gfs_data.nc", "wb") as f:
+    f.write(response.content)
+print("💾 Saved gfs_data.nc")
+
 
         # Step 2 — Generate SWI overlay & metadata
         generate_swi_overlay("gfs_data.nc")
