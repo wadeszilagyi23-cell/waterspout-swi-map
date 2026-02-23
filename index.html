@@ -1,74 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>SWI Contours</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>
-  html, body { height: 100%; margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 8px 12px; }
-  #map { height: 72vh; min-height: 420px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
-  .toolbar { display:flex; align-items:center; gap:12px; margin: 8px 0 12px; }
-  .legend { font-size: 12px; background: rgba(255,255,255,.9); padding:6px 8px; border-radius:6px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
-  .chip { display:inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -2px; }
-</style>
+  <title>Mediterranean SWI Map</title>
 </head>
 <body>
-<div class="wrap">
-  <h2 style="margin: 8px 0;">SWI Contours (auto-updating)</h2>
-  <div class="toolbar">
-    <label for="op">Overlay opacity</label>
-    <input id="op" type="range" min="0" max="1" step="0.05" value="0.7">
-    <span id="opv">0.70</span>
-    <span id="meta" style="margin-left:auto; color:#555;"></span>
-  </div>
-  <div id="map"></div>
-  <p style="color:#555; margin-top:8px;">SWI guidance concept by Szilagyi; this map derives an operational SWI-like index from open model fields.</p>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-(async function() {
-  const resp = await fetch('swi_meta.json', {cache:'no-cache'});
-  const meta = await resp.json();
-  const b = meta.bounds;
-  const bounds = [[b.lat_s, b.lon_w],[b.lat_n, b.lon_e]];
-
-  const map = L.map('map', {center: [(b.lat_s+b.lat_n)/2, (b.lon_w+b.lon_e)/2], zoom: 6});
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:'&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  const overlay = L.imageOverlay('swi_overlay.png', bounds, {opacity: 0.7, interactive:false}).addTo(map);
-  map.fitBounds(bounds, {padding:[10,10]});
-  map.attributionControl.setPrefix('');
-
-  // Simple legend matching levels in the builder
-  const legend = L.control({position:'bottomleft'});
-  legend.onAdd = function() {
-    const div = L.DomUtil.create('div','legend');
-    const levels = meta.levels;
-    const colors = ["#4cc9f0","#4895ef","#4361ee","#f59e0b","#ef4444","#b91c1c"];
-    const labels = [];
-    for (let i=1;i<levels.length;i++){
-      labels.push(`<div><span class="chip" style="background:${colors[i-1]}"></span>${levels[i-1]}–${levels[i]}</div>`);
-    }
-    labels.push(`<div><span class="chip" style="background:#b91c1c"></span>${levels.at(-2)}+</div>`);
-    div.innerHTML = `<b>SWI (arb. units)</b><br>${labels.join('')}`;
-    return div;
-  };
-  legend.addTo(map);
-
-  // Opacity control
-  const range = document.getElementById('op');
-  const val = document.getElementById('opv');
-  function setOp() { const v = parseFloat(range.value); overlay.setOpacity(v); val.textContent = v.toFixed(2); }
-  range.addEventListener('input', setOp); setOp();
-
-  // Meta
-  document.getElementById('meta').textContent = `Cycle: ${meta.cycle_utc.replace('T',' ').slice(0,16)} UTC`;
-})();
-</script>
+  <h1>Mediterranean SWI Map - Coming Soon</h1>
 </body>
 </html>
