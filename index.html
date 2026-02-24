@@ -38,24 +38,7 @@
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  function getColor(swi) {
-    return swi > 8 ? '#d73027' :
-           swi > 6 ? '#fc8d59' :
-           swi > 4 ? '#fee08b' :
-           swi > 2 ? '#91cf60' :
-                     '#4575b4';
-  }
-
-  function style(feature) {
-    return {
-      fillColor: getColor(feature.properties.swi),
-      weight: 0.5,
-      opacity: 1,
-      color: 'white',
-      fillOpacity: 0.7
-    };
-  }
-
+  
   fetch('data/med_swi_latest.geojson')
     .then(response => response.json())
     .then(data => {
@@ -88,16 +71,19 @@ function getColor(value) {
                       'transparent';
 }
 
-// 5️⃣ Add contours to map
 L.geoJSON(contours, {
   style: function(feature) {
+
+    const band = feature.properties.swi;
+
     return {
-      fillColor: getColor(feature.properties.swi),
+      fillColor: getColor(band),
       weight: 0,
       fillOpacity: 0.7
     };
   }
 }).addTo(map);
+      console.log(contours.features[0].properties);
 
       // Add legend
       const legend = L.control({position: 'bottomright'});
