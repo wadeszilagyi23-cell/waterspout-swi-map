@@ -60,12 +60,44 @@
     .then(response => response.json())
     .then(data => {
 
-      L.geoJSON(data, {
-        style: style,
-        onEachFeature: function (feature, layer) {
-          layer.bindPopup("SWI: " + feature.properties.swi);
-        }
-      }).addTo(map);
+      // 1️⃣ Convert polygons to centroid points
+const points = turf.featureCollection(
+  data.features.map(feature => {
+    const centroid = turf.centroid(feature);
+    centroid.properties.swi = feature.properties.swi;
+    return centroid;
+  })
+);
+
+// 2️⃣ Define ICWR SWI contour breaks
+const breaks = [0, 1, 2.5, 4.5, 6.5, 8.5, 10];
+
+// 3️⃣ Generate filled contour bands
+const contours = turf.isobands(points, breaks, {
+  zProperty: 'swi'
+});
+
+// 4️⃣ ICWR color scale
+function getColor(value) {
+  return value >= 9 ? '#ff0000' :
+         value >= 7 ? '#ffff00' :
+         value >= 5 ? '#00aa00' :
+         value >= 3 ? '#66ccff' :
+         value >= 1 ? '#800080' :
+         value >= 0 ? '#00008b' :
+                      'transparent';
+}
+
+// 5️⃣ Add contours to map
+L.geoJSON(contours, {
+  style: function(feature) {
+    return {
+      fillColor: getColor(feature.properties.swi),
+      weight: 0,
+      fillOpacity: 0.7
+    };
+  }
+}).addTo(map);
 
       // Add legend
       const legend = L.control({position: 'bottomright'});
