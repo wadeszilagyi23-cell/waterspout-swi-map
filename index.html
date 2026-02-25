@@ -71,21 +71,25 @@ function getColor(value) {
          value >= 0 ? '#00008b' :
                       'transparent';
 }
-
+      
+// 5️⃣ Add contours to map
 L.geoJSON(contours, {
   style: function(feature) {
 
-    const band = feature.properties.swi;
+    // Example: "0-1"
+    const bandString = feature.properties.swi;
+
+    // Extract lower value from string
+    const lowerValue = parseFloat(bandString.split('-')[0]);
 
     return {
-      fillColor: getColor(band),
+      fillColor: getColor(lowerValue),
       weight: 0,
       fillOpacity: 0.7
     };
   }
 }).addTo(map);
-      console.log(contours.features[0].properties);
-
+      
       // Add legend
       const legend = L.control({position: 'bottomright'});
       legend.onAdd = function () {
