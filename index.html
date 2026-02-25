@@ -60,7 +60,7 @@ const contours = turf.isobands(points, breaks, {
   zProperty: 'swi'
 });
 const smoothContours = turf.simplify(contours, {
-  tolerance: 0.1,
+  tolerance: 0.2,
   highQuality: true
 });
       
