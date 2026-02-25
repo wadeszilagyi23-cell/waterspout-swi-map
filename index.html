@@ -74,13 +74,19 @@ function getColor(value) {
       
 // 5️⃣ Add contours to map
 L.geoJSON(contours, {
+
   style: function(feature) {
 
-    // Example: "0-1"
     const bandString = feature.properties.swi;
-
-    // Extract lower value from string
     const lowerValue = parseFloat(bandString.split('-')[0]);
+
+    // 🔥 Skip negative bands entirely
+    if (lowerValue < 0) {
+      return {
+        fillOpacity: 0,
+        weight: 0
+      };
+    }
 
     return {
       fillColor: getColor(lowerValue),
@@ -88,6 +94,7 @@ L.geoJSON(contours, {
       fillOpacity: 0.7
     };
   }
+
 }).addTo(map);
       
       // Add legend
