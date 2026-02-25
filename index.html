@@ -59,7 +59,8 @@ const breaks = [0, 1, 2.5, 4.5, 6.5, 8.5, 10];
 const contours = turf.isobands(points, breaks, {
   zProperty: 'swi'
 });
-
+      
+console.log(contours.features[0].properties);
 // 4️⃣ ICWR color scale
 function getColor(value) {
   return value >= 9 ? '#ff0000' :
