@@ -92,19 +92,28 @@ L.geoJSON(contours, {
       
       // Add legend
       const legend = L.control({position: 'bottomright'});
-      legend.onAdd = function () {
-        const div = L.DomUtil.create('div', 'info legend');
-        const grades = [0, 2, 4, 6, 8];
-        let labels = [];
 
-        for (let i = 0; i < grades.length; i++) {
-          div.innerHTML +=
-            '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
-            grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
-        }
-        return div;
-      };
-      legend.addTo(map);
+legend.onAdd = function () {
+  const div = L.DomUtil.create('div', 'legend');
+
+  const breaks = [
+    {label: "0–1", color: "#00008b"},
+    {label: "1–2.5", color: "#800080"},
+    {label: "3–4.5", color: "#66ccff"},
+    {label: "5–6.5", color: "#00aa00"},
+    {label: "7–8.5", color: "#ffff00"},
+    {label: "9–10", color: "#ff0000"}
+  ];
+
+  breaks.forEach(item => {
+    div.innerHTML +=
+      `<i style="background:${item.color}"></i> ${item.label}<br>`;
+  });
+
+  return div;
+};
+
+legend.addTo(map);
 
       // Add update timestamp
       const updateBox = L.control({position: 'topright'});
