@@ -59,10 +59,6 @@ const breaks = [0, 1, 2.5, 4.5, 6.5, 8.5, 10];
 const contours = turf.isobands(points, breaks, {
   zProperty: 'swi'
 });
-const smoothContours = turf.simplify(contours, {
-  tolerance: 0.01,
-  highQuality: true
-});
       
 console.log(contours.features[0].properties);
 // 4️⃣ ICWR color scale
@@ -77,7 +73,7 @@ function getColor(value) {
 }
       
 // 5️⃣ Add contours to map
-L.geoJSON(smoothContours, {
+L.geoJSON(Contours, {
 
   style: function(feature) {
 
