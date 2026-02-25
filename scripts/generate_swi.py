@@ -7,12 +7,15 @@ lat_max = 46
 lon_min = -6
 lon_max = 37
 
-grid_step = 1  # 1-degree grid
+grid_step = 0.5  # 🔥 upgraded resolution
 
 features = []
 
-for lat in range(lat_min, lat_max):
-    for lon in range(lon_min, lon_max):
+lat = lat_min
+while lat < lat_max:
+    lon = lon_min
+    while lon < lon_max:
+
         swi_value = round(random.uniform(0, 10), 2)
 
         feature = {
@@ -33,6 +36,9 @@ for lat in range(lat_min, lat_max):
         }
 
         features.append(feature)
+
+        lon += grid_step
+    lat += grid_step
 
 geojson = {
     "type": "FeatureCollection",
