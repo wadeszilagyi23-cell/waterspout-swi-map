@@ -96,7 +96,21 @@ L.geoJSON(contours, {
   }
 
 }).addTo(map);
-      
+// 🌍 Land mask overlay (drawn above contours)
+fetch('data/countries.geojson')
+  .then(response => response.json())
+  .then(land => {
+
+    L.geoJSON(land, {
+      style: {
+        fillColor: '#ffffff',
+        fillOpacity: 1,
+        color: '#999999',
+        weight: 0.5
+      }
+    }).addTo(map);
+
+  });      
       // Add legend
       const legend = L.control({position: 'bottomright'});
 
