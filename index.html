@@ -73,7 +73,7 @@ function getColor(value) {
 }
       
 // 5️⃣ Add contours to map
-L.geoJSON(contours, {
+const contourLayer = L.geoJSON(contours, {
 
   style: function(feature) {
 
@@ -101,7 +101,7 @@ fetch('data/countries.geojson')
   .then(response => response.json())
   .then(land => {
 
-    L.geoJSON(land, {
+    const landLayer = L.geoJSON(land, {
       style: {
         fillColor: '#ffffff',
         fillOpacity: 1,
@@ -109,6 +109,9 @@ fetch('data/countries.geojson')
         weight: 0.5
       }
     }).addTo(map);
+
+    // 🔥 Force land to sit above contours
+    landLayer.bringToFront();
 
   });      
       // Add legend
