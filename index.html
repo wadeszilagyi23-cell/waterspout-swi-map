@@ -80,43 +80,44 @@ function getColor(value) {
                       'transparent';
 }
       
-// 5️⃣ Add contours to map
-const contourLayer = L.geoJSON(contours, {
-  pane: 'contoursPane',   // 🔥 ADD THIS LINE
-
-  style: function(feature) {
-
-    const bandString = feature.properties.swi;
-    const lowerValue = parseFloat(bandString.split('-')[0]);
-
-    // 🔥 Skip negative bands entirely
-    if (lowerValue < 0) {
-      return {
-        fillOpacity: 0,
-        weight: 0
-      };
-    }
-
-    return {
-      fillColor: getColor(lowerValue),
-      weight: 0,
-      fillOpacity: 0.7
-    };
-  }
-
-}).addTo(map);
-// 🌍 Land mask overlay (drawn above contours)
+// 🌍 Load land and clip contours
 fetch('data/countries.geojson')
   .then(response => response.json())
   .then(land => {
 
-const landLayer = L.geoJSON(land, {
-  pane: 'landPane',  
-  style: {
-        fillColor: '#ffffff',
-        fillOpacity: 1,
-        color: '#999999',
-        weight: 0.5
+    // Merge all land polygons into one geometry
+    const landUnion = land.features.reduce((acc, feature) => {
+      return acc ? turf.union(acc, feature) : feature;
+    }, null);
+
+    // Clip each contour band by removing land
+    const clippedFeatures = contours.features.map(feature => {
+      try {
+        return turf.difference(feature, landUnion);
+      } catch (e) {
+        return null;
+      }
+    }).filter(f => f !== null);
+
+    const clippedContours = turf.featureCollection(clippedFeatures);
+
+    // Add clipped contours to map
+    L.geoJSON(clippedContours, {
+      pane: 'contoursPane',
+      style: function(feature) {
+
+        const bandString = feature.properties.swi;
+        const lowerValue = parseFloat(bandString.split('-')[0]);
+
+        if (lowerValue < 0) {
+          return { fillOpacity: 0, weight: 0 };
+        }
+
+        return {
+          fillColor: getColor(lowerValue),
+          weight: 0,
+          fillOpacity: 0.7
+        };
       }
     }).addTo(map);
 
