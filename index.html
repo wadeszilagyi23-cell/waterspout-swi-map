@@ -33,7 +33,15 @@
 
 <script>
   const map = L.map('map').setView([38, 15], 5);
+  
+// Create panes for layer control
+map.createPane('contoursPane');
+map.getPane('contoursPane').style.zIndex = 400;
 
+map.createPane('landPane');
+map.getPane('landPane').style.zIndex = 450;
+  
+// Base map  
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
@@ -74,6 +82,7 @@ function getColor(value) {
       
 // 5️⃣ Add contours to map
 const contourLayer = L.geoJSON(contours, {
+  pane: 'contoursPane',   // 🔥 ADD THIS LINE
 
   style: function(feature) {
 
@@ -101,17 +110,15 @@ fetch('data/countries.geojson')
   .then(response => response.json())
   .then(land => {
 
-    const landLayer = L.geoJSON(land, {
-      style: {
+const landLayer = L.geoJSON(land, {
+  pane: 'landPane',  
+  style: {
         fillColor: '#ffffff',
         fillOpacity: 1,
         color: '#999999',
         weight: 0.5
       }
     }).addTo(map);
-
-    // 🔥 Force land to sit above contours
-    landLayer.bringToFront();
 
   });      
       // Add legend
