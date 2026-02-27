@@ -80,50 +80,25 @@ function getColor(value) {
                       'transparent';
 }
       
-// 🌍 Load land and clip contours (CLEAN VERSION)
-fetch('data/countries.geojson')
-  .then(response => response.json())
-  .then(land => {
+// 🔥 TEMP: Draw raw contours without clipping
+L.geoJSON(contours, {
+  pane: 'contoursPane',
+  style: function(feature) {
 
-    let clippedFeatures = contours.features;
+    const bandString = feature.properties.swi;
+    const lowerValue = parseFloat(bandString.split('-')[0]);
 
-    // Subtract each land polygon one by one
-    land.features.forEach(country => {
+    if (lowerValue < 0) {
+      return { fillOpacity: 0, weight: 0 };
+    }
 
-      clippedFeatures = clippedFeatures.map(feature => {
-        try {
-          const diff = turf.difference(feature, country);
-          return diff ? diff : feature;
-        } catch (e) {
-          return feature;
-        }
-      });
-
-    });
-
-    const clippedContours = turf.featureCollection(
-      clippedFeatures.filter(f => f !== null)
-    );
-
-    // Add clipped contours to map
-    L.geoJSON(clippedContours, {
-      pane: 'contoursPane',
-      style: function(feature) {
-
-        const bandString = feature.properties.swi;
-        const lowerValue = parseFloat(bandString.split('-')[0]);
-
-        if (lowerValue < 0) {
-          return { fillOpacity: 0, weight: 0 };
-        }
-
-        return {
-          fillColor: getColor(lowerValue),
-          weight: 0,
-          fillOpacity: 0.7
-        };
-      }
-    }).addTo(map);
+    return {
+      fillColor: getColor(lowerValue),
+      weight: 0,
+      fillOpacity: 0.7
+    };
+  }
+}).addTo(map);
 
   });
 });      // 🔥 ADD THIS LINE (closes med_swi fetch)
