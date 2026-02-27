@@ -80,26 +80,29 @@ function getColor(value) {
                       'transparent';
 }
       
-// 🌍 Load land and clip contours
+// 🌍 Load land and clip contours (SAFE VERSION)
 fetch('data/countries.geojson')
   .then(response => response.json())
   .then(land => {
 
-    // Merge all land polygons into one geometry
-    const landUnion = land.features.reduce((acc, feature) => {
-      return acc ? turf.union(acc, feature) : feature;
-    }, null);
+    let clippedFeatures = contours.features;
 
-    // Clip each contour band by removing land
-    const clippedFeatures = contours.features.map(feature => {
-      try {
-        return turf.difference(feature, landUnion);
-      } catch (e) {
-        return null;
-      }
-    }).filter(f => f !== null);
+    // Subtract each land polygon one by one
+    land.features.forEach(country => {
 
-    const clippedContours = turf.featureCollection(clippedFeatures);
+      clippedFeatures = clippedFeatures.map(feature => {
+        try {
+          return turf.difference(feature, country) || feature;
+        } catch (e) {
+          return feature;
+        }
+      });
+
+    });
+
+    const clippedContours = turf.featureCollection(
+      clippedFeatures.filter(f => f !== null)
+    );
 
     // Add clipped contours to map
     L.geoJSON(clippedContours, {
@@ -122,7 +125,7 @@ fetch('data/countries.geojson')
     }).addTo(map);
 
   });      
-      // Add legend
+// Add legend
       const legend = L.control({position: 'bottomright'});
 
 legend.onAdd = function () {
