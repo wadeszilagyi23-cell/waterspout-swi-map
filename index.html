@@ -126,8 +126,9 @@ fetch('data/countries.geojson')
     }).addTo(map);
 
   });
-    
-// Add legend
+});      // 🔥 ADD THIS LINE (closes med_swi fetch)
+
+// Add legend 
       const legend = L.control({position: 'bottomright'});
 
 legend.onAdd = function () {
