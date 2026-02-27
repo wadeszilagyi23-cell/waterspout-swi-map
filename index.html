@@ -32,114 +32,60 @@
 <div id="map"></div>
 
 <script>
-  const map = L.map('map').setView([38, 15], 5);
-  
-// Create panes for layer control
-map.createPane('contoursPane');
-map.getPane('contoursPane').style.zIndex = 400;
+<script>
+const map = L.map('map').setView([38, 15], 5);
 
-map.createPane('landPane');
-map.getPane('landPane').style.zIndex = 450;
-  
-// Base map  
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  
-  fetch('data/med_swi_latest.geojson')
-    .then(response => response.json())
-    .then(data => {
-
-      // 1️⃣ Convert polygons to centroid points
-const points = turf.featureCollection(
-  data.features.map(feature => {
-    const centroid = turf.centroid(feature);
-    centroid.properties.swi = feature.properties.swi;
-    return centroid;
-  })
-);
-
-// 2️⃣ Define ICWR SWI contour breaks
-const breaks = [0, 1, 2.5, 4.5, 6.5, 8.5, 10];
-
-// 3️⃣ Generate filled contour bands
-const contours = turf.isobands(points, breaks, {
-  zProperty: 'swi'
-});
-      
-console.log(contours.features[0].properties);
-// 4️⃣ ICWR color scale
-function getColor(value) {
-  return value >= 9 ? '#ff0000' :
-         value >= 7 ? '#ffff00' :
-         value >= 5 ? '#00aa00' :
-         value >= 3 ? '#66ccff' :
-         value >= 1 ? '#800080' :
-         value >= 0 ? '#00008b' :
-                      'transparent';
-}
-      
-// 🔥 TEMP: Draw raw contours without clipping
-L.geoJSON(contours, {
-  pane: 'contoursPane',
-  style: function(feature) {
-
-    const bandString = feature.properties.swi;
-    const lowerValue = parseFloat(bandString.split('-')[0]);
-
-    if (lowerValue < 0) {
-      return { fillOpacity: 0, weight: 0 };
-    }
-
-    return {
-      fillColor: getColor(lowerValue),
-      weight: 0,
-      fillOpacity: 0.7
-    };
-  }
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
+fetch('data/med_swi_latest.geojson')
+  .then(response => response.json())
+  .then(data => {
+
+    const points = turf.featureCollection(
+      data.features.map(feature => {
+        const centroid = turf.centroid(feature);
+        centroid.properties.swi = feature.properties.swi;
+        return centroid;
+      })
+    );
+
+    const breaks = [0, 1, 2.5, 4.5, 6.5, 8.5, 10];
+
+    const contours = turf.isobands(points, breaks, {
+      zProperty: 'swi'
+    });
+
+    function getColor(value) {
+      return value >= 9 ? '#ff0000' :
+             value >= 7 ? '#ffff00' :
+             value >= 5 ? '#00aa00' :
+             value >= 3 ? '#66ccff' :
+             value >= 1 ? '#800080' :
+             value >= 0 ? '#00008b' :
+                          'transparent';
+    }
+
+    L.geoJSON(contours, {
+      style: function(feature) {
+        const bandString = feature.properties.swi;
+        const lowerValue = parseFloat(bandString.split('-')[0]);
+
+        if (lowerValue < 0) {
+          return { fillOpacity: 0, weight: 0 };
+        }
+
+        return {
+          fillColor: getColor(lowerValue),
+          weight: 0,
+          fillOpacity: 0.7
+        };
+      }
+    }).addTo(map);
+
   });
-});      // 🔥 ADD THIS LINE (closes med_swi fetch)
-
-// Add legend 
-      const legend = L.control({position: 'bottomright'});
-
-legend.onAdd = function () {
-  const div = L.DomUtil.create('div', 'legend');
-
-  const breaks = [
-    {label: "0–1", color: "#00008b"},
-    {label: "1–2.5", color: "#800080"},
-    {label: "3–4.5", color: "#66ccff"},
-    {label: "5–6.5", color: "#00aa00"},
-    {label: "7–8.5", color: "#ffff00"},
-    {label: "9–10", color: "#ff0000"}
-  ];
-
-  breaks.forEach(item => {
-    div.innerHTML +=
-      `<i style="background:${item.color}"></i> ${item.label}<br>`;
-  });
-
-  return div;
-};
-
-legend.addTo(map);
-
-      // Add update timestamp
-      const updateBox = L.control({position: 'topright'});
-      updateBox.onAdd = function () {
-        const div = L.DomUtil.create('div');
-        div.style.background = 'white';
-        div.style.padding = '6px';
-        div.style.fontSize = '12px';
-        div.innerHTML = "Updated: " + new Date().toUTCString();
-        return div;
-      };
-      updateBox.addTo(map);
-
+</script>
 </script>
 </body>
 </html>
