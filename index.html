@@ -83,7 +83,23 @@ fetch('data/med_swi_latest.geojson')
       }
     }).addTo(map);
 
-  });
+    // 🌍 Land mask overlay (drawn ABOVE contours)
+    fetch('data/countries.geojson')
+      .then(response => response.json())
+      .then(land => {
+
+        L.geoJSON(land, {
+          style: {
+            fillColor: '#ffffff',
+            fillOpacity: 1,
+            color: '#999999',
+            weight: 0.5
+          }
+        }).addTo(map);
+
+      });
+
+  });    
 </script>
 </body>
 </html>
