@@ -80,7 +80,7 @@ function getColor(value) {
                       'transparent';
 }
       
-// 🌍 Load land and clip contours (SAFE VERSION)
+// 🌍 Load land and clip contours (CLEAN VERSION)
 fetch('data/countries.geojson')
   .then(response => response.json())
   .then(land => {
@@ -92,7 +92,8 @@ fetch('data/countries.geojson')
 
       clippedFeatures = clippedFeatures.map(feature => {
         try {
-          return turf.difference(feature, country) || feature;
+          const diff = turf.difference(feature, country);
+          return diff ? diff : feature;
         } catch (e) {
           return feature;
         }
@@ -123,6 +124,8 @@ fetch('data/countries.geojson')
         };
       }
     }).addTo(map);
+
+  });
 
   });      
 // Add legend
