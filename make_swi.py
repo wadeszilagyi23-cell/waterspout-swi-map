@@ -57,10 +57,15 @@ def fetch_gfs(ts_cycle):
         f.write(r.content)
 
     ds = xr.open_dataset(
-        "gfs.grib2",
-        engine="cfgrib",
-        backend_kwargs={"filter_by_keys": {"typeOfLevel": "surface"}}
-    )
+    "gfs.grib2",
+    engine="cfgrib",
+    backend_kwargs={
+        "filter_by_keys": {
+            "typeOfLevel": "surface",
+            "stepType": "instant"
+        }
+    }
+)
 
     return ds
 
