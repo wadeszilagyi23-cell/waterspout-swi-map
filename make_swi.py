@@ -77,9 +77,17 @@ def load_relational_table():
 
 def compute_swi(ds, points, values):
 
-    lat = ds["lat"].values
-    lon = ds["lon"].values
+    lat = ds["latitude"].values
+    lon = ds["longitude"].values
 
+    # SST and 850 temp (°C)
+    sst = ds["sst_surface"].squeeze().values - 273.15
+    t850 = ds["tmp_850mb"].squeeze().values - 273.15
+
+    # CAPE (J/kg)
+    cape = ds["cape_surface"].squeeze().values
+
+    # Apply bounding box
     lat_mask = (lat >= BBOX[2]) & (lat <= BBOX[3])
     lon_mask = (lon >= BBOX[0]) & (lon <= BBOX[1])
 
@@ -89,32 +97,22 @@ def compute_swi(ds, points, values):
     sst = sst[np.ix_(lat_mask, lon_mask)]
     t850 = t850[np.ix_(lat_mask, lon_mask)]
     cape = cape[np.ix_(lat_mask, lon_mask)]
-   
-    # SST and 850 temp (°C)
-    sst = ds["sst_surface"].squeeze().values - 273.15
-    t850 = ds["tmp_850mb"].squeeze().values - 273.15
 
-    # CAPE (J/kg)
-    cape = ds["cape_surface"].squeeze().values
-
-    # ΔT in °C (correct units for table)
+    # ΔT in °C
     dT = sst - t850
 
     # Cloud depth proxy (km)
     depth_km = np.sqrt(np.maximum(cape, 0)) / 10.0
 
-    # Convert to feet (table expects feet)
+    # Convert to feet
     dZ_m = depth_km * 1000.0
     dZ_ft = dZ_m * 3.28084
 
-    # Flatten for interpolation
     interp_points = np.column_stack((dT.flatten(), dZ_ft.flatten()))
 
     swi_flat = griddata(points, values, interp_points, method="linear")
-
     swi = swi_flat.reshape(dT.shape)
 
-    # Replace NaNs outside lookup domain
     swi = np.nan_to_num(swi, nan=-10)
 
     return lon, lat, swi
