@@ -45,7 +45,7 @@ def fetch_gfs(ts_cycle, bbox):
     base = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 
     params = {
-        "file": f"gfs.t{hh}z.pgrb2.0p25.f003",
+        "file": f"gfs.t{hh}z.pgrb2.0p25.f006",
         "lev_surface": "on",
         "lev_850_mb": "on",
         "var_sst": "on",
