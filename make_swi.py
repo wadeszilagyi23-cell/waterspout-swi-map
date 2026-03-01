@@ -38,30 +38,31 @@ def latest_cycle(now):
             return c
     return (now - dt.timedelta(days=1)).replace(hour=18, minute=0)
 
-def fetch_gfs(ts_cycle, bbox):
+def fetch_gfs(ts_cycle):
+
     ymd = ts_cycle.strftime("%Y%m%d")
     hh = ts_cycle.strftime("%H")
 
-    base = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
+    url = (
+        f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
+        f"gfs.{ymd}/{hh}/atmos/gfs.t{hh}z.pgrb2.0p25.f006"
+    )
 
-    params = {
-        "file": f"gfs.t{hh}z.pgrb2.0p25.f006",
-        "lev_surface": "on",
-        "lev_850_mb": "on",
-        "var_sst": "on",
-        "var_tmp": "on",
-        "var_cape": "on",
-        "leftlon": str(bbox[0]),
-        "rightlon": str(bbox[1]),
-        "toplat": str(bbox[3]),
-        "bottomlat": str(bbox[2]),
-        "dir": f"/gfs.{ymd}/{hh}/atmos",
-        "format": "netcdf"
-    }
+    print("Downloading:", url)
 
-    r = requests.get(base, params=params, timeout=180)
+    r = requests.get(url, timeout=300)
     r.raise_for_status()
-    return xr.open_dataset(io.BytesIO(r.content))
+
+    with open("gfs.grib2", "wb") as f:
+        f.write(r.content)
+
+    ds = xr.open_dataset(
+        "gfs.grib2",
+        engine="cfgrib",
+        backend_kwargs={"filter_by_keys": {"typeOfLevel": "surface"}}
+    )
+
+    return ds
 
 def load_relational_table():
     df = pd.read_excel(REL_TABLE, engine="xlrd")
@@ -74,6 +75,16 @@ def compute_swi(ds, points, values):
     lat = ds["lat"].values
     lon = ds["lon"].values
 
+    lat_mask = (lat >= BBOX[2]) & (lat <= BBOX[3])
+    lon_mask = (lon >= BBOX[0]) & (lon <= BBOX[1])
+
+    lat = lat[lat_mask]
+    lon = lon[lon_mask]
+
+    sst = sst[np.ix_(lat_mask, lon_mask)]
+    t850 = t850[np.ix_(lat_mask, lon_mask)]
+    cape = cape[np.ix_(lat_mask, lon_mask)]
+   
     # SST and 850 temp (°C)
     sst = ds["sst_surface"].squeeze().values - 273.15
     t850 = ds["tmp_850mb"].squeeze().values - 273.15
@@ -127,7 +138,7 @@ def main():
     now = dt.datetime.utcnow()
     cyc = latest_cycle(now)
 
-    ds = fetch_gfs(cyc, BBOX)
+    ds = fetch_gfs(cyc)
     points, values = load_relational_table()
 
     lon, lat, swi = compute_swi(ds, points, values)
