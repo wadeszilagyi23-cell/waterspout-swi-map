@@ -1,100 +1,151 @@
-# make_swi.py
-import requests
-import datetime
-import sys
-import time
-import xarray as xr
+import io, sys, datetime as dt, json
+from pathlib import Path
 import numpy as np
-import json
+import pandas as pd
+import requests
+import xarray as xr
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from scipy.interpolate import griddata
 
-# Bounding box for your area of interest
-BBOX = (-92.0, -74.0, 49.5, 40.5)  # leftlon, rightlon, toplat, bottomlat
+# ---------------- SETTINGS ----------------
 
-# --- New resilient GFS fetch logic ---
-MAX_CYCLES_BACK = 12  # check up to 3 days back
-CYCLE_INTERVAL_HOURS = 6
+BBOX = (-6.0, 37.0, 30.0, 46.5)
 
-def gfs_run_exists(url):
-    """Check if a GFS run file exists before downloading."""
-    try:
-        r = requests.head(url, timeout=10)
-        return r.status_code == 200
-    except requests.RequestException:
-        return False
+OUT_PNG = Path("web/swi_overlay.png")
+OUT_META = Path("web/swi_meta.json")
 
-def find_latest_gfs_url():
-    """Search backwards for the most recent available GFS run."""
-    now = datetime.datetime.utcnow()
-    for i in range(MAX_CYCLES_BACK):
-        run_time = now - datetime.timedelta(hours=i * CYCLE_INTERVAL_HOURS)
-        cycle_str = run_time.strftime("%Y%m%d %HZ")
-        url = (
-            f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/"
-            f"gfs.{run_time.strftime('%Y%m%d')}/{run_time.strftime('%H')}/atmos/"
-            f"gfs.t{run_time.strftime('%H')}z.pgrb2.0p25.f000"
-        )
-        print(f"🔍 Checking GFS run {cycle_str}...")
-        if gfs_run_exists(url):
-            print(f"✅ Found available run: {cycle_str}")
-            return url, cycle_str
-    return None, None
+REL_TABLE = "SWI Relational Data Points.xls"
 
+LEVELS = [-10, -5, 0, 5, 10, 15, 20, 25, 30]
+COLORS = [
+    "#00000000",
+    "#7dd3fc",
+    "#38bdf8",
+    "#0284c7",
+    "#f59e0b",
+    "#ef4444",
+    "#b91c1c",
+    "#7f1d1d"
+]
 
-    raise RuntimeError("No recent GFS runs available — try again later.")
+# -----------------------------------------
 
-def generate_swi_overlay(nc_path):
-    """Example SWI calculation + PNG/JSON output for Leaflet overlay."""
-    ds = xr.open_dataset(nc_path)
+def latest_cycle(now):
+    for h in [18, 12, 6, 0]:
+        c = now.replace(hour=h, minute=0, second=0, microsecond=0)
+        if c <= now:
+            return c
+    return (now - dt.timedelta(days=1)).replace(hour=18, minute=0)
 
-    # Dummy SWI calculation — replace with real formula
-    swi = ds['cape_surface'] / 1000.0  # scale CAPE values for demo
+def fetch_gfs(ts_cycle, bbox):
+    ymd = ts_cycle.strftime("%Y%m%d")
+    hh = ts_cycle.strftime("%H")
 
-    plt.figure(figsize=(8, 6))
-    plt.imshow(
-        swi, origin='upper', cmap='RdYlBu_r',
-        extent=[BBOX[0], BBOX[1], BBOX[3], BBOX[2]]
-    )
-    plt.colorbar(label='SWI')
-    plt.title('Szilagyi Waterspout Index')
-    plt.savefig('swi_overlay.png', bbox_inches='tight', transparent=True, dpi=150)
-    plt.close()
+    base = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 
-    meta = {
-        "bounds": [[BBOX[3], BBOX[0]], [BBOX[2], BBOX[1]]],
-        "opacity": 0.6
+    params = {
+        "file": f"gfs.t{hh}z.pgrb2.0p25.f003",
+        "lev_surface": "on",
+        "lev_850_mb": "on",
+        "var_sst": "on",
+        "var_tmp": "on",
+        "var_cape": "on",
+        "leftlon": str(bbox[0]),
+        "rightlon": str(bbox[1]),
+        "toplat": str(bbox[3]),
+        "bottomlat": str(bbox[2]),
+        "dir": f"/gfs.{ymd}/{hh}/atmos",
+        "format": "netcdf"
     }
-    with open('swi_meta.json', 'w') as f:
-        json.dump(meta, f)
 
-    print("🎯 Generated swi_overlay.png and swi_meta.json")
+    r = requests.get(base, params=params, timeout=180)
+    r.raise_for_status()
+    return xr.open_dataset(io.BytesIO(r.content))
+
+def load_relational_table():
+    df = pd.read_excel(REL_TABLE, engine="xlrd")
+    points = df[["delta T", "delta Z"]].values
+    values = df["SWI"].values
+    return points, values
+
+def compute_swi(ds, points, values):
+
+    lat = ds["lat"].values
+    lon = ds["lon"].values
+
+    # SST and 850 temp (°C)
+    sst = ds["sst_surface"].squeeze().values - 273.15
+    t850 = ds["tmp_850mb"].squeeze().values - 273.15
+
+    # CAPE (J/kg)
+    cape = ds["cape_surface"].squeeze().values
+
+    # ΔT in °C (correct units for table)
+    dT = sst - t850
+
+    # Cloud depth proxy (km)
+    depth_km = np.sqrt(np.maximum(cape, 0)) / 10.0
+
+    # Convert to feet (table expects feet)
+    dZ_m = depth_km * 1000.0
+    dZ_ft = dZ_m * 3.28084
+
+    # Flatten for interpolation
+    interp_points = np.column_stack((dT.flatten(), dZ_ft.flatten()))
+
+    swi_flat = griddata(points, values, interp_points, method="linear")
+
+    swi = swi_flat.reshape(dT.shape)
+
+    # Replace NaNs outside lookup domain
+    swi = np.nan_to_num(swi, nan=-10)
+
+    return lon, lat, swi
+
+def render(lon, lat, swi):
+
+    fig = plt.figure(figsize=(8,6), dpi=200)
+    ax = plt.axes([0,0,1,1])
+    ax.set_axis_off()
+
+    cmap = ListedColormap(COLORS)
+    norm = BoundaryNorm(LEVELS, cmap.N)
+
+    LON, LAT = np.meshgrid(lon, lat)
+    ax.pcolormesh(LON, LAT, swi, cmap=cmap, norm=norm, shading="nearest")
+
+    fig.patch.set_alpha(0)
+    ax.patch.set_alpha(0)
+
+    OUT_PNG.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(OUT_PNG, transparent=True)
+    plt.close(fig)
 
 def main():
-    try:
-        # Step 1 — Download most recent available GFS data
-        # Step 1 — Find the most recent available GFS run
-gfs_url, gfs_cycle = find_latest_gfs_url()
-if not gfs_url:
-    print("⚠ No new GFS data found — using last successful SWI overlay. (Build skipped)")
-    sys.exit(0)
 
-print(f"🚀 Proceeding with SWI overlay build using GFS run {gfs_cycle}...")
+    now = dt.datetime.utcnow()
+    cyc = latest_cycle(now)
 
-# Download the data
-response = requests.get(gfs_url)
-response.raise_for_status()
-with open("gfs_data.nc", "wb") as f:
-    f.write(response.content)
-print("💾 Saved gfs_data.nc")
+    ds = fetch_gfs(cyc, BBOX)
+    points, values = load_relational_table()
 
+    lon, lat, swi = compute_swi(ds, points, values)
+    render(lon, lat, swi)
 
-        # Step 2 — Generate SWI overlay & metadata
-        generate_swi_overlay("gfs_data.nc")
-        print("🎉 SWI overlay creation complete.")
-    except Exception as e:
-        print(f"💥 Script failed: {e}")
-        sys.exit(1)
+    meta = {
+        "generated_utc": now.isoformat() + "Z",
+        "cycle_utc": cyc.isoformat() + "Z",
+        "bounds": {
+            "lon_w": BBOX[0],
+            "lon_e": BBOX[1],
+            "lat_s": BBOX[2],
+            "lat_n": BBOX[3]
+        },
+        "levels": LEVELS
+    }
+
+    OUT_META.write_text(json.dumps(meta, indent=2))
 
 if __name__ == "__main__":
-    main()
-
+    sys.exit(main())
