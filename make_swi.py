@@ -191,7 +191,7 @@ def main():
     surface_ds, pressure_ds = fetch_gfs(cyc)
     points, values = load_relational_table()
 
-    lon, lat, swi = compute_swi(surface_ds, pressure_ds, points, values)
+    lon, lat, swi = compute_swi(surface_ds, pressure_ds, points, values, test_mode=True)
     render(lon, lat, swi)
 
     meta = {
