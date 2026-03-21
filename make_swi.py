@@ -140,6 +140,10 @@ swi_flat = griddata(points, values, interp_points, method="linear")
 
 swi = swi_flat.reshape(dT.shape)
 
+# Immediately after SWI interpolation
+swi[:] = -10   # FORCE full transparency
+swi = np.where(swi >= 0, swi, -10)
+
 # Replace any remaining NaN with minimum SWI (-10)
 swi = np.nan_to_num(swi, nan=-10)
 
