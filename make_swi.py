@@ -56,18 +56,19 @@ def fetch_gfs(ts_cycle):
     with open("gfs.grib2", "wb") as f:
         f.write(r.content)
 
-    ds = xr.open_dataset(
-    "gfs.grib2",
-    engine="cfgrib",
-    backend_kwargs={
-        "filter_by_keys": {
-            "typeOfLevel": "surface",
-            "stepType": "instant"
-        }
-    }
-)
+    import cfgrib
+    datasets = cfgrib.open_datasets("gfs.grib2")
 
-    return ds
+    surface_ds = None
+    pressure_ds = None
+
+    for d in datasets:
+        if "isobaricInhPa" in d.dims:
+            pressure_ds = d
+        else:
+            surface_ds = d
+
+    return surface_ds, pressure_ds
 
 def load_relational_table():
     df = pd.read_excel(REL_TABLE, engine="xlrd")
@@ -75,17 +76,27 @@ def load_relational_table():
     values = df["SWI"].values
     return points, values
 
-def compute_swi(ds, points, values):
+def compute_swi(surface_ds, pressure_ds, points, values):
 
-    lat = ds["latitude"].values
-    lon = ds["longitude"].values
+    # Coordinates
+lat = surface_ds["latitude"].values
+lon = surface_ds["longitude"].values
 
-    # SST and 850 temp (°C)
-    sst = ds["sst_surface"].squeeze().values - 273.15
-    t850 = ds["tmp_850mb"].squeeze().values - 273.15
+# --- SST (fallback to surface temp if missing)
+if "sst" in surface_ds:
+    sst = surface_ds["sst"].squeeze().values
+else:
+    sst = surface_ds["t"].squeeze().values  # fallback
 
-    # CAPE (J/kg)
-    cape = ds["cape_surface"].squeeze().values
+# --- 850 mb temperature
+t850 = pressure_ds["t"].sel(isobaricInhPa=850).squeeze().values
+
+# --- CAPE
+cape = surface_ds["cape"].squeeze().values
+
+# Convert to Celsius
+sst = sst - 273.15
+t850 = t850 - 273.15
 
     # Apply bounding box
     lat_mask = (lat >= BBOX[2]) & (lat <= BBOX[3])
@@ -107,6 +118,10 @@ def compute_swi(ds, points, values):
     # Convert to feet
     dZ_m = depth_km * 1000.0
     dZ_ft = dZ_m * 3.28084
+
+print("SST range:", np.nanmin(sst), np.nanmax(sst))
+print("T850 range:", np.nanmin(t850), np.nanmax(t850))
+print("CAPE range:", np.nanmin(cape), np.nanmax(cape))
 
     interp_points = np.column_stack((dT.flatten(), dZ_ft.flatten()))
 
@@ -141,10 +156,10 @@ def main():
     now = dt.datetime.utcnow()
     cyc = latest_cycle(now)
 
-    ds = fetch_gfs(cyc)
+    surface_ds, pressure_ds = fetch_gfs(cyc)
     points, values = load_relational_table()
 
-    lon, lat, swi = compute_swi(ds, points, values)
+    lon, lat, swi = compute_swi(surface_ds, pressure_ds, points, values)
     render(lon, lat, swi)
 
     meta = {
