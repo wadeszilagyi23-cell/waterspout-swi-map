@@ -76,29 +76,47 @@ def load_relational_table():
     values = df["SWI"].values
     return points, values
 
-def compute_swi(surface_ds, pressure_ds, points, values):
+def compute_swi(surface_ds, pressure_ds, points, values, test_mode=False):
+    """
+    Compute SWI overlay from GFS datasets and relational table.
+    
+    Parameters:
+        surface_ds : xarray Dataset
+            Surface-level GFS variables
+        pressure_ds : xarray Dataset
+            Pressure-level GFS variables
+        points : ndarray
+            2D array of delta T / delta Z from Excel
+        values : ndarray
+            Corresponding SWI values from Excel
+        test_mode : bool
+            If True, forces SWI < 0 (full transparency) for testing
+    
+    Returns:
+        lon, lat, swi : ndarray
+            Longitude, latitude, and SWI array
+    """
+    # --- Coordinates
+    lat = surface_ds["latitude"].values
+    lon = surface_ds["longitude"].values
 
-    # Coordinates
-lat = surface_ds["latitude"].values
-lon = surface_ds["longitude"].values
+    # --- SST (fallback to surface temp if missing)
+    if "sst" in surface_ds:
+        sst = surface_ds["sst"].squeeze().values
+    else:
+        sst = surface_ds["t"].squeeze().values  # fallback
 
-# --- SST (fallback to surface temp if missing)
-if "sst" in surface_ds:
-    sst = surface_ds["sst"].squeeze().values
-else:
-    sst = surface_ds["t"].squeeze().values  # fallback
+    # --- 850 mb temperature
+    t850 = pressure_ds["t"].sel(isobaricInhPa=850).squeeze().values
 
-# --- 850 mb temperature
-t850 = pressure_ds["t"].sel(isobaricInhPa=850).squeeze().values
+    # --- CAPE
+    cape = surface_ds["cape"].squeeze().values
 
-# --- CAPE
-cape = surface_ds["cape"].squeeze().values
+    # --- Convert to Celsius
+    sst = sst - 273.15
+    t850 = t850 - 273.15
 
-# Convert to Celsius
-sst = sst - 273.15
-t850 = t850 - 273.15
-
-    # Apply bounding box
+    # --- Apply bounding box
     lat_mask = (lat >= BBOX[2]) & (lat <= BBOX[3])
     lon_mask = (lon >= BBOX[0]) & (lon <= BBOX[1])
 
@@ -109,43 +127,37 @@ t850 = t850 - 273.15
     t850 = t850[np.ix_(lat_mask, lon_mask)]
     cape = cape[np.ix_(lat_mask, lon_mask)]
 
-    # ΔT in °C
+    # --- ΔT in °C
     dT = sst - t850
 
-    # Cloud depth proxy (km)
+    # --- Cloud depth proxy (km)
     depth_km = np.sqrt(np.maximum(cape, 0)) / 10.0
 
-    # --- TEST MODE: force no waterspout potential
-    cape[:] = 0         # set CAPE to 0
-    dT = dT - 20        # reduce delta T to force SWI < 0
-
-    # Convert to feet
+    # --- Convert to feet
     dZ_m = depth_km * 1000.0
     dZ_ft = dZ_m * 3.28084
 
-    interp_points = np.column_stack((dT.flatten(), dZ_ft.flatten()))
+    # --- TEST MODE: force no waterspout potential
+    if test_mode:
+        cape[:] = 0
+        dT = dT - 20  # large negative shift to ensure SWI < 0
 
-    # Clip ΔT and ΔZ to the range of your relational table
-dT_min, dT_max = points[:,0].min(), points[:,0].max()
-dZ_min, dZ_max = points[:,1].min(), points[:,1].max()
+    # --- Clip ΔT and ΔZ to relational table range
+    dT_min, dT_max = points[:, 0].min(), points[:, 0].max()
+    dZ_min, dZ_max = points[:, 1].min(), points[:, 1].max()
 
-dT_clipped = np.clip(dT, dT_min, dT_max)
-dZ_clipped = np.clip(dZ_ft, dZ_min, dZ_max)
+    dT_clipped = np.clip(dT, dT_min, dT_max)
+    dZ_clipped = np.clip(dZ_ft, dZ_min, dZ_max)
 
-# Prepare points for interpolation
-interp_points = np.column_stack((dT_clipped.flatten(), dZ_clipped.flatten()))
+    interp_points = np.column_stack((dT_clipped.flatten(), dZ_clipped.flatten()))
+    swi_flat = griddata(points, values, interp_points, method="linear")
+    swi = swi_flat.reshape(dT.shape)
 
-# Interpolate SWI using relational table
-swi_flat = griddata(points, values, interp_points, method="linear")
+    # --- Replace NaN with minimum SWI (-10)
+    swi = np.nan_to_num(swi, nan=-10)
 
-swi = swi_flat.reshape(dT.shape)
-
-# Immediately after SWI interpolation
-swi[:] = -10   # FORCE full transparency
-swi = np.where(swi >= 0, swi, -10)
-
-# Replace any remaining NaN with minimum SWI (-10)
-swi = np.nan_to_num(swi, nan=-10)
+    # --- Ensure transparency for SWI < 0
+    swi = np.where(swi >= 0, swi, -10)
 
     return lon, lat, swi
 # Ensure areas with no potential stay transparent
