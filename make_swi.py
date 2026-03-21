@@ -124,6 +124,12 @@ def compute_swi(surface_ds, pressure_ds, points, values, test_mode=False):
 
     dT_clipped = np.clip(dT, dT_min, dT_max)
     dZ_clipped = np.clip(dZ_ft, dZ_min, dZ_max)
+    
+    # Immediately before interpolation
+    print("dT min/max:", dT.min(), dT.max())
+    print("dZ_ft min/max:", dZ_ft.min(), dZ_ft.max())
+    print("cape min/max:", cape.min(), cape.max())
+    print("interp_points shape:", interp_points.shape)
 
     # --- Interpolate SWI
     interp_points = np.column_stack((dT_clipped.flatten(), dZ_clipped.flatten()))
