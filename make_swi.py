@@ -115,13 +115,13 @@ t850 = t850 - 273.15
     # Cloud depth proxy (km)
     depth_km = np.sqrt(np.maximum(cape, 0)) / 10.0
 
+    # --- TEST MODE: force no waterspout potential
+    cape[:] = 0         # set CAPE to 0
+    dT = dT - 20        # reduce delta T to force SWI < 0
+
     # Convert to feet
     dZ_m = depth_km * 1000.0
     dZ_ft = dZ_m * 3.28084
-
-print("SST range:", np.nanmin(sst), np.nanmax(sst))
-print("T850 range:", np.nanmin(t850), np.nanmax(t850))
-print("CAPE range:", np.nanmin(cape), np.nanmax(cape))
 
     interp_points = np.column_stack((dT.flatten(), dZ_ft.flatten()))
 
