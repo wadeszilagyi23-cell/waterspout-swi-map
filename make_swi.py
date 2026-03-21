@@ -77,34 +77,15 @@ def load_relational_table():
     return points, values
 
 def compute_swi(surface_ds, pressure_ds, points, values, test_mode=False):
-    """
-    Compute SWI overlay from GFS datasets and relational table.
-    
-    Parameters:
-        surface_ds : xarray Dataset
-            Surface-level GFS variables
-        pressure_ds : xarray Dataset
-            Pressure-level GFS variables
-        points : ndarray
-            2D array of delta T / delta Z from Excel
-        values : ndarray
-            Corresponding SWI values from Excel
-        test_mode : bool
-            If True, forces SWI < 0 (full transparency) for testing
-    
-    Returns:
-        lon, lat, swi : ndarray
-            Longitude, latitude, and SWI array
-    """
     # --- Coordinates
     lat = surface_ds["latitude"].values
     lon = surface_ds["longitude"].values
 
-    # --- SST (fallback to surface temp if missing)
+    # --- SST (fallback to surface temp)
     if "sst" in surface_ds:
         sst = surface_ds["sst"].squeeze().values
     else:
-        sst = surface_ds["t"].squeeze().values  # fallback
+        sst = surface_ds["t"].squeeze().values
 
     # --- 850 mb temperature
     t850 = pressure_ds["t"].sel(isobaricInhPa=850).squeeze().values
@@ -137,18 +118,14 @@ def compute_swi(surface_ds, pressure_ds, points, values, test_mode=False):
     dZ_m = depth_km * 1000.0
     dZ_ft = dZ_m * 3.28084
 
-    # --- TEST MODE: force no waterspout potential
-    if test_mode:
-        cape[:] = 0
-        dT = dT - 20  # large negative shift to ensure SWI < 0
-
-    # --- Clip ΔT and ΔZ to relational table range
+    # --- Clip ΔT and ΔZ to table range
     dT_min, dT_max = points[:, 0].min(), points[:, 0].max()
     dZ_min, dZ_max = points[:, 1].min(), points[:, 1].max()
 
     dT_clipped = np.clip(dT, dT_min, dT_max)
     dZ_clipped = np.clip(dZ_ft, dZ_min, dZ_max)
 
+    # --- Interpolate SWI
     interp_points = np.column_stack((dT_clipped.flatten(), dZ_clipped.flatten()))
     swi_flat = griddata(points, values, interp_points, method="linear")
     swi = swi_flat.reshape(dT.shape)
@@ -156,13 +133,14 @@ def compute_swi(surface_ds, pressure_ds, points, values, test_mode=False):
     # --- Replace NaN with minimum SWI (-10)
     swi = np.nan_to_num(swi, nan=-10)
 
-    # --- Ensure transparency for SWI < 0
+    # --- TEST MODE: force full transparency
+    if test_mode:
+        swi[:] = -10
+
+    # --- Ensure SWI < 0 stays transparent
     swi = np.where(swi >= 0, swi, -10)
 
     return lon, lat, swi
-# Ensure areas with no potential stay transparent
-# SWI >= 0 → potential; SWI < 0 → no potential (transparent)
-swi = np.where(swi >= 0, swi, -10)
 
 def render(lon, lat, swi):
 
