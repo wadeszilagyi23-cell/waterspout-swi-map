@@ -125,10 +125,23 @@ print("CAPE range:", np.nanmin(cape), np.nanmax(cape))
 
     interp_points = np.column_stack((dT.flatten(), dZ_ft.flatten()))
 
-    swi_flat = griddata(points, values, interp_points, method="linear")
-    swi = swi_flat.reshape(dT.shape)
+    # Clip ΔT and ΔZ to the range of your relational table
+dT_min, dT_max = points[:,0].min(), points[:,0].max()
+dZ_min, dZ_max = points[:,1].min(), points[:,1].max()
 
-    swi = np.nan_to_num(swi, nan=-10)
+dT_clipped = np.clip(dT, dT_min, dT_max)
+dZ_clipped = np.clip(dZ_ft, dZ_min, dZ_max)
+
+# Prepare points for interpolation
+interp_points = np.column_stack((dT_clipped.flatten(), dZ_clipped.flatten()))
+
+# Interpolate SWI using relational table
+swi_flat = griddata(points, values, interp_points, method="linear")
+
+swi = swi_flat.reshape(dT.shape)
+
+# Replace any remaining NaN with minimum SWI (-10)
+swi = np.nan_to_num(swi, nan=-10)
 
     return lon, lat, swi
 
