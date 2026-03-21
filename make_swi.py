@@ -144,6 +144,9 @@ swi = swi_flat.reshape(dT.shape)
 swi = np.nan_to_num(swi, nan=-10)
 
     return lon, lat, swi
+# Ensure areas with no potential stay transparent
+# SWI >= 0 → potential; SWI < 0 → no potential (transparent)
+swi = np.where(swi >= 0, swi, -10)
 
 def render(lon, lat, swi):
 
